@@ -1,0 +1,8 @@
+(library
+  (name dedepython)
+  (modules (:standard \ test)))
+
+(test
+(name test)
+(libraries ounit2 dedepython)
+(modules (:standard \ dedepython)))
