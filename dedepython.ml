@@ -18,6 +18,10 @@ let p1 = Module [Expr (Num 123)]
 
 let p2 = Module [Expr (BinOp (Num 3, Add, Num 2))]
 
+let p3 = Module [Expr (Num 1); Expr (Num 2)]
+
+let p4 = Module [Expr (BinOp (BinOp (Num 1, Add, Num 2), Add, Num 3))]
+
 let interp (p : prog) : int =
   (* You need to change this function to actually implement an interpreter *)
   (* You might want to define some helper functions *)

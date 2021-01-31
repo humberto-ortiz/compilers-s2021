@@ -14,7 +14,9 @@ let make_i n i p =
 
 let tests = [
   make_i "int" 22 (Module [Expr (Num 22)]);
-  make_i "add" 5 p2
+  make_i "add" 5 p2;
+  make_i "stms" 2 p3;
+  make_i "bobo" 6 p4
 ]
 
 let _ = run_test_tt_main ("suite" >::: tests)
