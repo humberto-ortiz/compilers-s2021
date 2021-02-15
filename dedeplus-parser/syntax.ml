@@ -1,5 +1,4 @@
 (* syntax.ml - Abstract syntax for dedepython *)
-type id = string
 
 type binop =
   | Add | Sub | Mult | Div
