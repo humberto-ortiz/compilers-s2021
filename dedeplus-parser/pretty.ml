@@ -9,7 +9,7 @@ let pretty_binop op =
 
 let rec pretty_exp expr =
   match expr with
-  | Num n -> string_of_int n
+  | Num n -> "Num " ^ string_of_int n
   | BinOp (e1, op, e2) ->
      "BinOp (" ^
      pretty_exp e1 ^
@@ -25,14 +25,14 @@ let rec pretty_list_exp lst =
 
 let pretty_stm stm =
   match stm with
-  | Expr exp -> "Expr " ^ pretty_exp exp ^ "\n"
-  | Print exps -> "Print " ^ String.concat ", " (List.map pretty_exp exps) ^ "\n"
+  | Expr exp -> "Expr " ^ pretty_exp exp
+  | Print exps -> "Print " ^ String.concat ", " (List.map pretty_exp exps)
 
 let pretty_prog prog =
   let text = match prog with
     | Module stms ->
       "Module [\n" ^
-      String.concat "" (List.map pretty_stm stms) ^
-      "]\n"
+      String.concat ";\n" (List.map pretty_stm stms) ^
+      "\n]\n"
   in
   text

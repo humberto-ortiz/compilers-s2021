@@ -9,14 +9,14 @@ statement). It is built from several interconnected parts.
 `parser.mly` - defines tokens and builds syntax tree  
 `pretty.ml` - converts syntax to string, for debugging  
 `main.ml` - driver for parser, read a file, parse it, print it  
-`test\` - folder with dedepython+ test programs  
+`test/` - folder with dedepython+ test programs  
 
 You can run a test using `dune exec`:
 
 ```
 $ dune exec ./main.exe test/112.dp 
 Module [
-Expr 112
+Expr Num 112
 ]
 ```
 
@@ -27,29 +27,29 @@ pretty printer.
 
 A grammar for dedepython+. A program is a list of statments separated by
 newlines. A statement can be the keyword print followed by a comma separated
-list of expressions or an expression. An expression is a number or an expression
-in parentheses or two expressions separated by a binary operator. The binary
-operators are + - * /.
+list of expressions or an expression. An expression is a NUMBER or an expression
+in parentheses or two expressions separated by a binary operator. A NUMBER is a
+sequence of decimal digits. The binary operators are + - * /.
 
 ```
 prog: stms
 
 stms:
-| stm
-| stm EOL stms
+  stm
+  stm EOL stms
  
 stm:
-| print exprs
-| exp
+  print exprs
+  exp
   
 exprs:
-| exp
-| exp , exprs
+  exp
+  exp , exprs
 
 exp:
-| number
-| ( exp )
-| exp binop exp
+  NUMBER
+  ( exp )
+  exp binop exp
 
 binop: + | - | * | /
 ```
@@ -70,3 +70,8 @@ There are several examples in the test/ directory in this repository. I am inclu
 print 1, 2, 3
 ```
 
+```
+1
+2
+3
+```
