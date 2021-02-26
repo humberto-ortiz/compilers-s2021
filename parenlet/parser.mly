@@ -1,5 +1,5 @@
 /* parser.mly - grammar for depython */
-%token <int> NUMBER
+%token <int64> NUMBER
 %token <string> ID
 %token LPAREN RPAREN
 %token EOF                      /* end of file */

@@ -2,7 +2,7 @@
 
 
 type expr =
-  | Num of int
+  | Num of int64
   | Add1 of expr
   | Sub1 of expr
   | Id of string

@@ -4,7 +4,7 @@ open Parser        (* The type token is defined in parser.mli *)
 }
 rule token = parse
   [' ' '\t' '\n']     { token lexbuf }     (* skip blanks *)
-| ['0'-'9']+ as lxm { NUMBER(int_of_string lxm) }
+| ['0'-'9']+ as lxm { NUMBER( Int64.of_string lxm) }
 | '('            { LPAREN }
 | ')'            { RPAREN }
 | "sub1"        { SUB1 }

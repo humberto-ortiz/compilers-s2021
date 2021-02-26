@@ -79,16 +79,9 @@ our_code_starts_here:
 ";;
 
 (* Some OCaml boilerplate for reading files and command-line arguments *)
-
-let ast_test infile =
-   let lexbuf = Lexing.from_channel infile in
-   let loop () =
-     let prog  = Parser.expr Lexer.token lexbuf in
-     printf "%s\n" (compile_prog prog)
-   in
-   loop ()
-
-
 let () =
-  let input_file = (open_in (Sys.argv.(1))) in
-  ast_test input_file
+  let infile = (open_in (Sys.argv.(1))) in
+  let lexbuf = Lexing.from_channel infile in
+  let input_ast =  Parser.expr Lexer.token lexbuf in
+  let program = (compile_prog input_ast) in
+  printf "%s\n" program;;
