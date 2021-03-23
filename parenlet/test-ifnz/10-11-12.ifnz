@@ -1,0 +1,5 @@
+(let (x (ifnz 10 
+	      11 
+	      12)) 
+   (ifnz x (add1 x) (sub1 x)))
+
