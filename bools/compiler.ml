@@ -74,8 +74,7 @@ let rec asm_to_string (asm : instruction list) : string =
   | [] -> ""
   | inst::instrs -> inst_to_string inst ^ "\n" ^ asm_to_string instrs
 
-(* A very sophisticated compiler - insert the given integer into the mov
-   instruction at the correct place *)
+(* A less unsophisticated compiler - this one actually has to do stuff *)
 type env = (string * int) list
 
 let rec lookup name env =
@@ -88,6 +87,7 @@ let add name env : (env * int) =
   let slot = 1 + (List.length env) in
   ((name, slot)::env, slot)
 
+(* TODO: fix is_imm *)
 let is_imm e =
   match e with
   | ENum _ -> true
@@ -133,8 +133,9 @@ let max_cobra_int = Int64.div Int64.max_int 2L
 let const_true = Int64.max_int
 let const_false = -1L
 
+(* TODO: borre el "rec" pero hay que volverlo a poner *)
 let compile_expr (e : expr) (env : env) : instruction list =
-  (* para arreglar el error de no usar env *)
+  (* TODO: quitar este let para arreglar el error de no usar env *)
   let _ = env in
   match e with
   | ENum n ->
@@ -146,7 +147,9 @@ let compile_expr (e : expr) (env : env) : instruction list =
   | EBool false -> [IMov (Reg RAX, Const (const_false))]
   (* voy a picharle, tienen que arregarlo ustedes *)
   | _ -> failwith "Don't know how to compile that yet!"
-              (* 
+(* TODO: implementar los demas casos *) 
+(*
+(* TODO: Add1 y Sub1 ahora son Prim1 *)
   | Add1 otra_expr -> compile_expr otra_expr env @ 
                       [ IAdd (Reg RAX, Const 1L) ] 
   | Sub1 otra_expr -> compile_expr otra_expr env @
