@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 typedef uint64_t SNAKEVAL;
 
@@ -18,6 +19,33 @@ SNAKEVAL print(SNAKEVAL val) {
     printf("Unknown value: %#018lx", val); // print unknown val in hex
   }
   return val;
+}
+
+const int ERR_NOT_NUMBER = 1;
+const int ERR_NOT_BOOLEAN = 2;
+// other error codes here
+
+void error(int errCode, SNAKEVAL val) {
+  if (errCode == ERR_NOT_NUMBER) {
+    fprintf(stderr, "Expected number, but got %010lx\n", val);
+  } else if (errCode == ERR_NOT_BOOLEAN) {
+    fprintf(stderr, "Expected boolean, but got %010lx\n", val);
+  } 
+
+    exit(errCode);
+}
+
+SNAKEVAL max(SNAKEVAL a, SNAKEVAL b) {
+  if (a & BOOL_TAG)
+    error(ERR_NOT_NUMBER, a);
+
+  if (b & BOOL_TAG)
+    error(ERR_NOT_NUMBER, b);
+
+  if (a > b)
+    return a;
+  else
+    return b;
 }
 
 extern int64_t our_code_starts_here() asm("our_code_starts_here");

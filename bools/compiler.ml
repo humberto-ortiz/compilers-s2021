@@ -42,7 +42,9 @@ type instruction =
   | ISub of arg * arg
   | IMul of arg * arg
   | ICmp of arg * arg
+  | ITest of arg * arg
   | IJne of string
+  | IJnz of string
   | IJmp of string
   | ILabel of string
 
@@ -65,7 +67,9 @@ let inst_to_string inst =
   | ISub (a1, a2) -> "sub " ^ arg_to_string a1 ^ ", " ^ arg_to_string a2
   | IMul (a1, a2) -> "imul " ^ arg_to_string a1 ^ ", " ^ arg_to_string a2
   | ICmp (a1, a2) -> "cmp " ^ arg_to_string a1 ^ ", " ^ arg_to_string a2
+  | ITest (a1, a2) -> "test " ^ arg_to_string a1 ^ ", " ^ arg_to_string a2
   | IJne target -> "jne " ^ target
+  | IJnz target -> "jnz " ^ target
   | IJmp target -> "jmp " ^ target
   | ILabel label -> label ^ ":"
 
@@ -97,9 +101,7 @@ let is_imm e =
 let rec is_anf e =
   match e with
   | EPrim1 (_,  e) -> is_imm e
-  | EPrim2 (_, e1, e2) -> is_imm e1 && is_imm e2
   | ELet (_, e1, e2) -> is_anf e1 && is_anf e2
-  | EIfnz (e1, e2, e3) -> is_imm e1 && is_anf e2 && is_anf e3
   | _ -> is_imm e
 
 let gensym =
@@ -116,16 +118,7 @@ let rec anf e =
   | EPrim1 (op, e1) ->
     let temp = gensym "e1" in
     ELet (temp, anf e1, EPrim1 (op, EId temp))
-  | EPrim2 (op, e1, e2) ->
-    let left_var = gensym "left" in
-    let right_var = gensym "right" in
-    ELet (left_var, anf e1,
-         ELet (right_var, anf e2,
-              EPrim2 (op, EId left_var, EId right_var)))
   | ELet (v, e1, e2) -> ELet (v, anf e1, anf e2)
-  | EIfnz (e1, e2, e3) ->
-    let temp = gensym "ifnz" in
-    ELet (temp, anf e1, EIfnz (EId temp, anf e2, anf e3))
 
 let min_cobra_int = Int64.div Int64.min_int 2L
 let max_cobra_int = Int64.div Int64.max_int 2L
@@ -133,10 +126,7 @@ let max_cobra_int = Int64.div Int64.max_int 2L
 let const_true = Int64.max_int
 let const_false = -1L
 
-(* TODO: borre el "rec" pero hay que volverlo a poner *)
-let compile_expr (e : expr) (env : env) : instruction list =
-  (* TODO: quitar este let para arreglar el error de no usar env *)
-  let _ = env in
+let rec compile_expr (e : expr) (env : env) : instruction list =
   match e with
   | ENum n ->
     if n > max_cobra_int || n < min_cobra_int then
@@ -145,15 +135,24 @@ let compile_expr (e : expr) (env : env) : instruction list =
       [ IMov(Reg(RAX), Const(Int64.shift_left n 1))]
   | EBool true -> [IMov (Reg RAX, Const (const_true))]
   | EBool false -> [IMov (Reg RAX, Const (const_false))]
+  | EPrim1 (Add1, e1) ->
+    compile_expr e1 env @
+    [ ITest (Reg RAX, Const 1L) ;
+      IJnz "error_not_number" ;
+      IAdd (Reg RAX, Const 1L) ] 
+  | EId v ->
+    let slot = lookup v env in 
+    [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
+  | ELet (id, e1, e2) ->
+    let (env', slot) = add id env in
+    compile_expr e1 env @
+    [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
+    compile_expr e2 env'
   (* voy a picharle, tienen que arregarlo ustedes *)
   | _ -> failwith "Don't know how to compile that yet!"
 (* TODO: implementar los demas casos *) 
 (*
 (* TODO: Add1 y Sub1 ahora son Prim1 *)
-  | Add1 otra_expr -> compile_expr otra_expr env @ 
-                      [ IAdd (Reg RAX, Const 1L) ] 
-  | Sub1 otra_expr -> compile_expr otra_expr env @
-                      [ IAdd (Reg RAX, Const (-1L)) ]
   | Id v ->
     let slot = lookup v env in 
     [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
@@ -162,35 +161,6 @@ let compile_expr (e : expr) (env : env) : instruction list =
     compile_expr e1 env @
     [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
     compile_expr e2 env'
-  | Ifnz (test_expr, then_expr, else_expr) ->
-    (* hagan un let de los labels *)
-    let then_target = gensym "then" in
-    let done_target = gensym "done" in
-    compile_expr test_expr env
-    @ [ICmp (Reg RAX, Const 0L);
-       IJne then_target
-      ]
-    @ compile_expr else_expr env
-    @ [IJmp done_target ;
-       ILabel then_target
-      ]
-    @ compile_expr then_expr env
-    @ [ILabel done_target ]
-  | Prim2 (Plus, e1, e2) ->
-    compile_expr e2 env @
-    [ IMov (Reg R11, Reg RAX) ] @
-    compile_expr e1 env @
-     [ IAdd (Reg RAX, Reg R11) ]
-  | Prim2 (Minus, e1, e2) ->
-    compile_expr e2 env @
-    [ IMov (Reg R11, Reg RAX) ] @
-    compile_expr e1 env @
-    [ ISub (Reg RAX, Reg R11) ]
-  | Prim2 (Times, e1, e2) ->
-    compile_expr e2 env @
-    [ IMov (Reg R11, Reg RAX) ] @
-    compile_expr e1 env @
-    [ IMul (Reg RAX, Reg R11) ]
                  *)
 ;;
 
@@ -200,10 +170,23 @@ let compile_prog (e : expr) : string =
 
 "
 section .text
+
+extern error
+
+error_not_number:
+  mov RSI, RAX   ;; Arg 2: the badly behaved value
+  mov RDI, 1     ;; Arg 1: a constant describing which error-code occurred
+  call error ;; our error handler
+
 global our_code_starts_here
 our_code_starts_here:
+  push RBP          ; save (previous, caller's) RBP on stack
+  mov RBP, RSP      ; make current RSP the new RBP
 " ^ instr_string ^ "
-  ret
+  mov RSP, RBP      ; restore value of RSP to that just before call
+                  ; now, value at [RSP] is caller's (saved) RBP
+  pop RBP           ; so: restore caller's RBP from stack [RSP]
+  ret               ; return to caller
 ";;
 
 (* Some OCaml boilerplate for reading files and command-line arguments *)
