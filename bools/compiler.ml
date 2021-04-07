@@ -194,6 +194,6 @@ let () =
   let infile = (open_in (Sys.argv.(1))) in
   let lexbuf = Lexing.from_channel infile in
   let input_ast =  Parser.expr Lexer.token lexbuf in
-  let _ = anf input_ast in
-  let program = (compile_prog input_ast) in
+  let anfed = anf input_ast in
+  let program = (compile_prog anfed) in
   printf "%s\n" program;;
