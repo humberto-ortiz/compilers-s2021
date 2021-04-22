@@ -101,6 +101,7 @@ let rec asm_to_string (asm : instruction list) : string =
   | inst::instrs -> inst_to_string inst ^ "\n" ^ asm_to_string instrs
 
 (* A less unsophisticated compiler - this one actually has to do stuff *)
+(* TODO: use arg for variable location? *)
 type env = (string * int) list
 
 let rec lookup name env =
@@ -197,6 +198,8 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
       (placeargs args [RDI; RSI; RDX ; RCX; R8; R9]) @
     [ICall f ]
   (* voy a picharle, tienen que arregarlo ustedes *)
+  (* TODO: esto es un hack terrible, la unica variable es un solo argumento *)
+  | EId v -> [IMov (Reg RAX, Reg RDI) ]
   | _ -> failwith "Don't know how to compile that yet!"
 (* TODO: implementar los demas casos *) 
 (*
@@ -288,7 +291,7 @@ error_not_number:
 " ^ decls_string ^ "
 
 global our_code_starts_here
-our_ decl_code_starts_here:
+our_code_starts_here:
   push RBP          ; save (previous, caller's) RBP on stack
   mov RBP, RSP      ; make current RSP the new RBP
 " ^ instr_string ^ "
@@ -300,6 +303,7 @@ our_ decl_code_starts_here:
 
 (* Some OCaml boilerplate for reading files and command-line arguments *)
 (* TODO: hay que arreglar el parser para que produzca Program ... *)
+(* TODO: hacer un try ... except para reportar los errores de parse *)
 let () =
   let infile = (open_in (Sys.argv.(1))) in
   let lexbuf = Lexing.from_channel infile in
