@@ -29,6 +29,7 @@ open Syntax
 type reg =
   | RAX
   | RSP
+  | RDI
   | R11
 
 type arg =
@@ -47,11 +48,13 @@ type instruction =
   | IJnz of string
   | IJmp of string
   | ILabel of string
+  | ICall of string
 
 let reg_to_string r =
   match r with
   | RAX -> "rax"
   | RSP -> "rsp"
+  | RDI -> "rdi"
   | R11 -> "r11"
 
 let arg_to_string a =
@@ -72,11 +75,12 @@ let inst_to_string inst =
   | IJnz target -> "jnz " ^ target
   | IJmp target -> "jmp " ^ target
   | ILabel label -> label ^ ":"
+  | ICall label -> "call " ^ label
 
 let rec asm_to_string (asm : instruction list) : string =
   match asm with
   | [] -> ""
-  | inst::instrs -> inst_to_string inst ^ "\n" ^ asm_to_string instrs
+  | inst::instrs -> inst_to_string inst ^ "\n  " ^ asm_to_string instrs
 
 (* A less unsophisticated compiler - this one actually has to do stuff *)
 type env = (string * int) list
@@ -140,6 +144,10 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     [ ITest (Reg RAX, Const 1L) ;
       IJnz "error_not_number" ;
       IAdd (Reg RAX, Const 1L) ] 
+  | EPrim1 (Print, e) ->
+    compile_expr e env @
+    [ IMov (Reg RDI, Reg RAX);
+      ICall "print" ]
   | EId v ->
     let slot = lookup v env in 
     [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
@@ -172,21 +180,23 @@ let compile_prog (e : expr) : string =
 section .text
 
 extern error
+extern print
 
 error_not_number:
-  mov RSI, RAX   ;; Arg 2: the badly behaved value
-  mov RDI, 1     ;; Arg 1: a constant describing which error-code occurred
-  call error ;; our error handler
+  mov RSI, RAX      ;; Arg 2: the badly behaved value
+  mov RDI, 1        ;; Arg 1: a constant describing which error-code occurred
+  call error        ;; our error handler
 
 global our_code_starts_here
 our_code_starts_here:
-  push RBP          ; save (previous, caller's) RBP on stack
-  mov RBP, RSP      ; make current RSP the new RBP
-" ^ instr_string ^ "
-  mov RSP, RBP      ; restore value of RSP to that just before call
-                  ; now, value at [RSP] is caller's (saved) RBP
-  pop RBP           ; so: restore caller's RBP from stack [RSP]
-  ret               ; return to caller
+  push RBP          ;; save (previous, caller's) RBP on stack
+  mov RBP, RSP      ;; make current RSP the new RBP
+
+  " ^ instr_string ^ "
+  mov RSP, RBP      ;; restore value of RSP to that just before call
+                    ;; now, value at [RSP] is caller's (saved) RBP
+  pop RBP           ;; so: restore caller's RBP from stack [RSP]
+  ret               ;; return to caller
 ";;
 
 (* Some OCaml boilerplate for reading files and command-line arguments *)

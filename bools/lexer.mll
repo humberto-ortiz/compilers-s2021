@@ -13,6 +13,7 @@ rule token = parse
   | "if"              { IF }
   | "true"            { TRUE }
   | "false"           { FALSE }
+  | "print"           { PRINT }
   | '+'               { PLUS }
   | '-'               { MINUS }
   | '*'               { TIMES }
