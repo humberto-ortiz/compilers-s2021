@@ -140,6 +140,11 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     [ ITest (Reg RAX, Const 1L) ;
       IJnz "error_not_number" ;
       IAdd (Reg RAX, Const 1L) ] 
+  | EPrim1 (Sub1, e) ->
+    compile_expr e env @
+    [ ITest (Reg RAX, Const 1L);
+      IJnz "error_not_number";
+      ISub (Reg RAX, Const 2L) ]
   | EId v ->
     let slot = lookup v env in 
     [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
@@ -152,7 +157,7 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
   | _ -> failwith "Don't know how to compile that yet!"
 (* TODO: implementar los demas casos *) 
 (*
-(* TODO: Add1 y Sub1 ahora son Prim1 *)
+(* TODO: Add1 ahora es Prim1 *)
   | Id v ->
     let slot = lookup v env in 
     [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
