@@ -189,7 +189,7 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     compile_expr e1 env @
     [ ITest (Reg RAX, Const 1L) ;
       IJnz "error_not_number" ;
-      IAdd (Reg RAX, Const 1L) ]
+      IAdd (Reg RAX, Const 2L) ]
   | ECall (f, args) ->
     (* acomodar los argumentos *)
     if List.length args > 6 then
