@@ -66,7 +66,6 @@ let reg_to_string r =
   | RDI -> "rdi"
   | R11 -> "r11"
   | RDX -> "RDX"
-  | RDI -> "RDI"
   | RSI -> "RSI"
   | RCX -> "RCX"
   | R8 -> "R8"
@@ -164,6 +163,8 @@ and anf e =
     ELet (temp, anf e1, EIfnz (EId temp, anf e2, anf e3))
   | ECall (f, args) ->
     callhelper(f, args, [])
+;;
+
 let min_cobra_int = Int64.div Int64.min_int 2L
 let max_cobra_int = Int64.div Int64.max_int 2L
 
@@ -311,6 +312,6 @@ let () =
   let infile = (open_in (Sys.argv.(1))) in
   let lexbuf = Lexing.from_channel infile in
   let input_ast =  Parser.expr Lexer.token lexbuf in
-  let _ = anf input_ast in
-  let program = (compile_prog input_ast) in
+  let anfed = anf input_ast in
+  let program = (compile_prog anfed) in
   printf "%s\n" program;;
