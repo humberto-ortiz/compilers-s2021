@@ -29,7 +29,14 @@ open Syntax
 type reg =
   | RAX
   | RSP
+  | RDX
+  | RDI
+  | RSI
+  | RCX
+  | R8
+  | R9
   | R11
+  | RBP
 
 type arg =
   | Const of int64
@@ -47,13 +54,24 @@ type instruction =
   | IJnz of string
   | IJmp of string
   | ILabel of string
+  | ICall of string
+  | IPush of arg
+  | IPop of arg
+  | IRet 
 
 let reg_to_string r =
   match r with
   | RAX -> "rax"
   | RSP -> "rsp"
   | R11 -> "r11"
-
+  | RDX -> "RDX"
+  | RDI -> "RDI"
+  | RSI -> "RSI"
+  | RCX -> "RCX"
+  | R8 -> "R8"
+  | R9 -> "R9"
+  | RBP -> "RBP"
+  
 let arg_to_string a =
   match a with
   | Reg r -> reg_to_string r
@@ -72,6 +90,10 @@ let inst_to_string inst =
   | IJnz target -> "jnz " ^ target
   | IJmp target -> "jmp " ^ target
   | ILabel label -> label ^ ":"
+  | ICall label -> "call " ^ label
+  | IPush arg -> "push " ^ arg_to_string arg
+  | IPop arg -> "pop " ^ arg_to_string arg
+  | IRet -> "ret"
 
 let rec asm_to_string (asm : instruction list) : string =
   match asm with
@@ -79,6 +101,7 @@ let rec asm_to_string (asm : instruction list) : string =
   | inst::instrs -> inst_to_string inst ^ "\n" ^ asm_to_string instrs
 
 (* A less unsophisticated compiler - this one actually has to do stuff *)
+(* TODO: use arg for variable location? *)
 type env = (string * int) list
 
 let rec lookup name env =
@@ -101,7 +124,10 @@ let is_imm e =
 let rec is_anf e =
   match e with
   | EPrim1 (_,  e) -> is_imm e
+  | EPrim2 (_, e1, e2) -> is_imm e1 && is_imm e2
   | ELet (_, e1, e2) -> is_anf e1 && is_anf e2
+  | EIfnz (e1, e2, e3) -> is_imm e1 && is_anf e2 && is_anf e3
+  | ECall (_, args) -> List.for_all is_imm args
   | _ -> is_imm e
 
 let gensym =
@@ -110,7 +136,14 @@ let gensym =
      counter := !counter + 1;
      sprintf "%s_%d" basename !counter)
 
-let rec anf e =
+let rec callhelper (f, args, ids) =
+  match args with 
+  | [] -> ECall (f, List.rev ids)
+  | arg::args ->
+    let temp = gensym "t" in
+    ELet (temp, anf arg, callhelper (f, args, (EId temp)::ids) )
+
+and anf e =
   match e with
   | ENum _ -> e
   | EBool _ -> e
@@ -118,8 +151,18 @@ let rec anf e =
   | EPrim1 (op, e1) ->
     let temp = gensym "e1" in
     ELet (temp, anf e1, EPrim1 (op, EId temp))
+  | EPrim2 (op, e1, e2) ->
+    let left_var = gensym "left" in
+    let right_var = gensym "right" in
+    ELet (left_var, anf e1,
+         ELet (right_var, anf e2,
+              EPrim2 (op, EId left_var, EId right_var)))
   | ELet (v, e1, e2) -> ELet (v, anf e1, anf e2)
-
+  | EIfnz (e1, e2, e3) ->
+    let temp = gensym "ifnz" in
+    ELet (temp, anf e1, EIfnz (EId temp, anf e2, anf e3))
+  | ECall (f, args) ->
+    callhelper(f, args, [])
 let min_cobra_int = Int64.div Int64.min_int 2L
 let max_cobra_int = Int64.div Int64.max_int 2L
 
@@ -127,7 +170,14 @@ let const_true = Int64.max_int
 let const_false = -1L
 
 let rec compile_expr (e : expr) (env : env) : instruction list =
-  match e with
+  let rec placeargs args regs =
+    match args with
+    | [] -> []
+    | arg::args -> compile_expr arg env @
+                   [ IMov (Reg (List.hd regs), Reg RAX) ] @
+                   placeargs args (List.tl regs)
+
+  in match e with
   | ENum n ->
     if n > max_cobra_int || n < min_cobra_int then
       failwith ("Integer overflow: " ^ (Int64.to_string n))
@@ -139,20 +189,53 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     compile_expr e1 env @
     [ ITest (Reg RAX, Const 1L) ;
       IJnz "error_not_number" ;
-      IAdd (Reg RAX, Const 1L) ] 
-  | EId v ->
-    let slot = lookup v env in 
-    [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
-  | ELet (id, e1, e2) ->
-    let (env', slot) = add id env in
-    compile_expr e1 env @
-    [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
-    compile_expr e2 env'
+      IAdd (Reg RAX, Const 2L) ]
+  | EPrim2(Plus, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IAdd1 (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Minus, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ ISub1 (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Times, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IMul (Reg R11) ] @ [ ISar(Reg(RAX), Const(1L)) ]
+  
+  | EPrim2(And, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IAnd (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Or, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IOr (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Less, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "less" in [ IJl lbl1 ] @ let lbl2 = gensym "greater" in [ILabel lbl2] @ [IMov (Reg RAX, Const(const_false))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(const_true))] @ [ILabel lbl3]
+  
+  | EPrim2(Greater, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "greater" in [ IJg lbl1 ] @ let lbl2 = gensym "less" in [ILabel lbl2] @ [IMov (Reg RAX, Const(cont_false))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(const_true))] @ [ILabel lbl3]
+  
+  | EPrim2(LessEq, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "LessOrEqual" in [ IJle lbl1 ] @ let lbl2 = gensym "greater" in [ILabel lbl2] @ [IMov (Reg RAX, Const(const_false))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(const_true))] @ [ILabel lbl3]
+  
+  | EPrim2(GreaterEq, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "GreaterOrEqual" in [ IJge lbl1 ] @ let lbl2 = gensym "less" in [ILabel lbl2] @ [IMov (Reg RAX, Const(const_false))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(const_true))] @ [ILabel lbl3]
+  
+  | EPrim2(Eq, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "Equal" in [ IJe lbl1 ] @ let lbl2 = gensym "notEqual" in [ILabel lbl2] @ [IMov (Reg RAX, Const(const_false))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(const_true))] @ [ILabel lbl3]
+  
+  | EPrim2(Ne, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "notEqual" in [ IJne lbl1 ] @ let lbl2 = gensym "equal" in [ILabel lbl2] @ [IMov (Reg RAX, Const(const_false))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(const_true))] @ [ILabel lbl3]
+  
+  | ECall (f, args) ->
+    (* acomodar los argumentos *)
+    if List.length args > 6 then
+      failwith "Can't compile function with that many args"
+    else
+      (placeargs args [RDI; RSI; RDX ; RCX; R8; R9]) @
+    [ICall f ]
   (* voy a picharle, tienen que arregarlo ustedes *)
+  (* TODO: esto es un hack terrible, la unica variable es un solo argumento *)
+  | EId v -> [IMov (Reg RAX, Reg RDI) ]
   | _ -> failwith "Don't know how to compile that yet!"
 (* TODO: implementar los demas casos *) 
 (*
 (* TODO: Add1 y Sub1 ahora son Prim1 *)
+  | Add1 otra_expr -> compile_expr otra_expr env @ 
+                      [ IAdd (Reg RAX, Const 1L) ] 
+  | Sub1 otra_expr -> compile_expr otra_expr env @
+                      [ IAdd (Reg RAX, Const (-1L)) ]
   | Id v ->
     let slot = lookup v env in 
     [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
@@ -161,22 +244,79 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     compile_expr e1 env @
     [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
     compile_expr e2 env'
+  | Ifnz (test_expr, then_expr, else_expr) ->
+    (* hagan un let de los labels *)
+    let then_target = gensym "then" in
+    let done_target = gensym "done" in
+    compile_expr test_expr env
+    @ [ICmp (Reg RAX, Const 0L);
+       IJne then_target
+      ]
+    @ compile_expr else_expr env
+    @ [IJmp done_target ;
+       ILabel then_target
+      ]
+    @ compile_expr then_expr env
+    @ [ILabel done_target ]
+  | Prim2 (Plus, e1, e2) ->
+    compile_expr e2 env @
+    [ IMov (Reg R11, Reg RAX) ] @
+    compile_expr e1 env @
+     [ IAdd (Reg RAX, Reg R11) ]
+  | Prim2 (Minus, e1, e2) ->
+    compile_expr e2 env @
+    [ IMov (Reg R11, Reg RAX) ] @
+    compile_expr e1 env @
+    [ ISub (Reg RAX, Reg R11) ]
+  | Prim2 (Times, e1, e2) ->
+    compile_expr e2 env @
+    [ IMov (Reg R11, Reg RAX) ] @
+    compile_expr e1 env @
+    [ IMul (Reg RAX, Reg R11) ]
                  *)
 ;;
 
-let compile_prog (e : expr) : string =
-  let instrs = compile_expr e [] in
-  let instr_string = asm_to_string instrs in
+let compile_decl d env =
+  match d with
+  | DFun (fname, args, body) ->
+    (* algo con fname *)
+    ([ ILabel fname ;
+       IPush (Reg RBP) ;
+       IMov (Reg RBP, Reg RSP)
+     ] @
+     compile_expr body env @
+    [ IMov (Reg RSP, Reg RBP);
+      IPop (Reg RBP);
+      IRet
+    ], (fname, 0) :: env) (* cero no es el slot correcto, pero no se cual es *)
+
+let rec compile_decls decls env =
+  match decls with
+  | [] -> []
+  | decl :: decls ->
+    let instrs, env' = compile_decl decl env in
+    instrs @ compile_decls decls env' 
+
+let compile_prog (p : program) : string =
+  match p with
+  | Program (decls, e) ->
+    let decls_inst = compile_decls decls [] in
+    let decls_string = asm_to_string decls_inst in
+    let instrs = compile_expr e [] in
+    let instr_string = asm_to_string instrs in
 
 "
 section .text
 
 extern error
+extern max
 
 error_not_number:
   mov RSI, RAX   ;; Arg 2: the badly behaved value
   mov RDI, 1     ;; Arg 1: a constant describing which error-code occurred
   call error ;; our error handler
+
+" ^ decls_string ^ "
 
 global our_code_starts_here
 our_code_starts_here:
@@ -190,10 +330,12 @@ our_code_starts_here:
 ";;
 
 (* Some OCaml boilerplate for reading files and command-line arguments *)
+(* TODO: hay que arreglar el parser para que produzca Program ... *)
+(* TODO: hacer un try ... except para reportar los errores de parse *)
 let () =
   let infile = (open_in (Sys.argv.(1))) in
   let lexbuf = Lexing.from_channel infile in
   let input_ast =  Parser.expr Lexer.token lexbuf in
-  let anfed = anf input_ast in
-  let program = (compile_prog anfed) in
+  let _ = anf input_ast in
+  let program = (compile_prog input_ast) in
   printf "%s\n" program;;
