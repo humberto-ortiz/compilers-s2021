@@ -47,6 +47,8 @@ expr:
   { EBool false }
 | LPAREN ADD1 e = expr RPAREN
   { EPrim1 (Add1, e) }
+| LPAREN SUB1 e = expr RPAREN
+  { EPrim1 (Sub1, e) }
 | id = ID
   { EId id }
 | LPAREN LET LPAREN s = ID e1 = expr RPAREN e2 = expr RPAREN
