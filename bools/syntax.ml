@@ -8,8 +8,15 @@ type prim1 =
 type prim2 =
   | Plus
   | Minus
-  | Times
-  | And | Or | Less | Greater | LessEq | GreaterEq | Eq | Ne
+  | Times 
+  | And 
+  | Or 
+  | Less 
+  | Greater 
+  | LessEq 
+  | GreaterEq 
+  | Eq 
+  | Ne
 
 type expr =
   | ENum of int64
