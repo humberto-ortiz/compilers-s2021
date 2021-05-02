@@ -17,4 +17,12 @@ rule token = parse
   | '+'               { PLUS }
   | '-'               { MINUS }
   | '*'               { TIMES }
+  | "&&"           { AND } 
+  | "||"           { OR }
+  | "<"            { LESS } 
+  | ">"            { GREATER } 
+  | "<="           { LESSEQ }
+  | ">="           { GREATEREQ } 
+  | "=="           { EQ }
+  | "!="           { NE } 
   | ['a'-'z' 'A'-'Z' '_' '0'-'9']+ as id { ID id}

@@ -204,6 +204,34 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     compile_expr e1 env @
     [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
     compile_expr e2 env'
+  | EPrim2(Plus, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IAdd1 (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Minus, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ ISub1 (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Times, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IMul (Reg R11) ] @ [ ISar(Reg(RAX), Const(1L)) ]
+  
+  | EPrim2(And, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IAnd (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Or, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ IOr (Reg RAX, Reg R11) ] 
+  
+  | EPrim2(Less, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @
+  compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "less" in [ IJl lbl1 ] @ let lbl2 = gensym "greater" in [ILabel lbl2] @ [IMov (Reg RAX, Const(falseBool))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(trueBool))] @ [ILabel lbl3]
+  
+  | EPrim2(Greater, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "greater" in [ IJg lbl1 ] @ let lbl2 = gensym "less" in [ILabel lbl2] @ [IMov (Reg RAX, Const(falseBool))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(trueBool))] @ [ILabel lbl3]
+  
+  | EPrim2(LessEq, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "LessOrEqual" in [ IJle lbl1 ] @ let lbl2 = gensym "greater" in [ILabel lbl2] @ [IMov (Reg RAX, Const(falseBool))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(trueBool))] @ [ILabel lbl3]
+  
+  | EPrim2(GreaterEq, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "GreaterOrEqual" in [ IJge lbl1 ] @ let lbl2 = gensym "less" in [ILabel lbl2] @ [IMov (Reg RAX, Const(falseBool))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(trueBool))] @ [ILabel lbl3]
+  
+  | EPrim2(Eq, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "Equal" in [ IJe lbl1 ] @ let lbl2 = gensym "notEqual" in [ILabel lbl2] @ [IMov (Reg RAX, Const(falseBool))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(trueBool))] @ [ILabel lbl3]
+  
+  | EPrim2(Ne, e1, e2) -> compile_expr e2 env @ [ IMov (Reg R11, Reg RAX) ] @ compile_expr e1 env @ [ ICmp (Reg RAX, Reg R11) ] @ let lbl1 = gensym "notEqual" in [ IJne lbl1 ] @ let lbl2 = gensym "equal" in [ILabel lbl2] @ [IMov (Reg RAX, Const(falseBool))] @ let lbl3 = gensym "done" in [IJmp lbl3] @ [ILabel lbl1] @ [IMov (Reg RAX,Const(trueBool))] @ [ILabel lbl3]
+  
   | ECall (f, args) ->
     (* acomodar los argumentos *)
     if List.length args > 6 then
