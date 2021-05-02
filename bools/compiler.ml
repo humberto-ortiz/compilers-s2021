@@ -192,6 +192,11 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     [ ITest (Reg RAX, Const 1L) ;
       IJnz "error_not_number" ;
       IAdd (Reg RAX, Const 2L) ] 
+  | EPrim1 (Sub1, e) ->
+    compile_expr e env @
+    [ ITest (Reg RAX, Const 1L);
+      IJnz "error_not_number";
+      ISub (Reg RAX, Const 2L) ]
   | EPrim1 (Print, e) ->
     compile_expr e env @
     [ IMov (Reg RDI, Reg RAX);
@@ -243,9 +248,6 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
   | _ -> failwith "Don't know how to compile that yet!"
 (* TODO: implementar los demas casos *) 
 (*
-(* TODO:Sub1 ahora es Prim1 *)
-  | Sub1 otra_expr -> compile_expr otra_expr env @
-                      [ IAdd (Reg RAX, Const (-1L)) ]
   | Ifnz (test_expr, then_expr, else_expr) ->
     (* hagan un let de los labels *)
     let then_target = gensym "then" in
@@ -260,21 +262,13 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
       ]
     @ compile_expr then_expr env
     @ [ILabel done_target ]
-  | Prim2 (Plus, e1, e2) ->
-    compile_expr e2 env @
-    [ IMov (Reg R11, Reg RAX) ] @
+  | Id v ->
+    let slot = lookup v env in 
+    [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
+  | Let (id, e1, e2) ->
+    let (env', slot) = add id env in
     compile_expr e1 env @
      [ IAdd (Reg RAX, Reg R11) ]
-  | Prim2 (Minus, e1, e2) ->
-    compile_expr e2 env @
-    [ IMov (Reg R11, Reg RAX) ] @
-    compile_expr e1 env @
-    [ ISub (Reg RAX, Reg R11) ]
-  | Prim2 (Times, e1, e2) ->
-    compile_expr e2 env @
-    [ IMov (Reg R11, Reg RAX) ] @
-    compile_expr e1 env @
-    [ IMul (Reg RAX, Reg R11) ]
                  *)
 ;;
 
