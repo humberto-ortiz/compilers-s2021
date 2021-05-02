@@ -13,7 +13,15 @@ rule token = parse
   | "if"              { IF }
   | "true"            { TRUE }
   | "false"           { FALSE }
-  | '+'               { PLUS }
-  | '-'               { MINUS }
-  | '*'               { TIMES }
+  | "+"            { PLUS }
+  | "-"            { MINUS }
+  | "*"            { TIMES }
+  | "&&"           { AND } 
+  | "||"           { OR }
+  | "<"            { LESS } 
+  | ">"            { GREATER } 
+  | "<="           { LESSEQ }
+  | ">="           { GREATEREQ } 
+  | "=="           { EQ }
+  | "!="           { NE } 
   | ['a'-'z' 'A'-'Z' '_' '0'-'9']+ as id { ID id}
