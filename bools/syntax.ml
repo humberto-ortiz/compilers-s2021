@@ -4,6 +4,7 @@ type prim1 =
   | Not
   | Add1
   | Sub1
+  | Print
 
 type prim2 =
   | Plus

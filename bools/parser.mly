@@ -10,6 +10,7 @@
 %token LET
 %token IF
 %token TRUE FALSE
+%token PRINT
 
 %start <Syntax.expr> expr
 %{ open Syntax %}
@@ -28,7 +29,8 @@ expr:
   { EId id }
 | LPAREN LET LPAREN s = ID e1 = expr RPAREN e2 = expr RPAREN
   { ELet (s, e1, e2) }
-
+| LPAREN PRINT e = expr RPAREN
+  { EPrim1 (Print, e) }
 /* estos no los he arreglado
  LPAREN IFNZ e1 = expr e2 = expr e3 = expr RPAREN
     { Ifnz (e1, e2, e3) }

@@ -63,9 +63,9 @@ let reg_to_string r =
   match r with
   | RAX -> "rax"
   | RSP -> "rsp"
+  | RDI -> "rdi"
   | R11 -> "r11"
   | RDX -> "RDX"
-  | RDI -> "RDI"
   | RSI -> "RSI"
   | RCX -> "RCX"
   | R8 -> "R8"
@@ -98,7 +98,7 @@ let inst_to_string inst =
 let rec asm_to_string (asm : instruction list) : string =
   match asm with
   | [] -> ""
-  | inst::instrs -> inst_to_string inst ^ "\n" ^ asm_to_string instrs
+  | inst::instrs -> inst_to_string inst ^ "\n  " ^ asm_to_string instrs
 
 (* A less unsophisticated compiler - this one actually has to do stuff *)
 (* TODO: use arg for variable location? *)
@@ -163,6 +163,8 @@ and anf e =
     ELet (temp, anf e1, EIfnz (EId temp, anf e2, anf e3))
   | ECall (f, args) ->
     callhelper(f, args, [])
+;;
+
 let min_cobra_int = Int64.div Int64.min_int 2L
 let max_cobra_int = Int64.div Int64.max_int 2L
 
@@ -189,7 +191,19 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
     compile_expr e1 env @
     [ ITest (Reg RAX, Const 1L) ;
       IJnz "error_not_number" ;
-      IAdd (Reg RAX, Const 1L) ]
+      IAdd (Reg RAX, Const 2L) ] 
+  | EPrim1 (Print, e) ->
+    compile_expr e env @
+    [ IMov (Reg RDI, Reg RAX);
+      ICall "print" ]
+  | EId v ->
+    let slot = lookup v env in 
+    [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
+  | ELet (id, e1, e2) ->
+    let (env', slot) = add id env in
+    compile_expr e1 env @
+    [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
+    compile_expr e2 env'
   | ECall (f, args) ->
     (* acomodar los argumentos *)
     if List.length args > 6 then
@@ -198,24 +212,12 @@ let rec compile_expr (e : expr) (env : env) : instruction list =
       (placeargs args [RDI; RSI; RDX ; RCX; R8; R9]) @
     [ICall f ]
   (* voy a picharle, tienen que arregarlo ustedes *)
-  (* TODO: esto es un hack terrible, la unica variable es un solo argumento *)
-  | EId v -> [IMov (Reg RAX, Reg RDI) ]
   | _ -> failwith "Don't know how to compile that yet!"
 (* TODO: implementar los demas casos *) 
 (*
-(* TODO: Add1 y Sub1 ahora son Prim1 *)
-  | Add1 otra_expr -> compile_expr otra_expr env @ 
-                      [ IAdd (Reg RAX, Const 1L) ] 
+(* TODO:Sub1 ahora es Prim1 *)
   | Sub1 otra_expr -> compile_expr otra_expr env @
                       [ IAdd (Reg RAX, Const (-1L)) ]
-  | Id v ->
-    let slot = lookup v env in 
-    [ IMov (Reg RAX, RegOffset (RSP, ~-1 * slot))]
-  | Let (id, e1, e2) ->
-    let (env', slot) = add id env in
-    compile_expr e1 env @
-    [ IMov (RegOffset (RSP, ~-1 * slot), Reg RAX)] @
-    compile_expr e2 env'
   | Ifnz (test_expr, then_expr, else_expr) ->
     (* hagan un let de los labels *)
     let then_target = gensym "then" in
@@ -281,24 +283,26 @@ let compile_prog (p : program) : string =
 section .text
 
 extern error
+extern print
 extern max
 
 error_not_number:
-  mov RSI, RAX   ;; Arg 2: the badly behaved value
-  mov RDI, 1     ;; Arg 1: a constant describing which error-code occurred
-  call error ;; our error handler
+  mov RSI, RAX      ;; Arg 2: the badly behaved value
+  mov RDI, 1        ;; Arg 1: a constant describing which error-code occurred
+  call error        ;; our error handler
 
 " ^ decls_string ^ "
 
 global our_code_starts_here
 our_code_starts_here:
-  push RBP          ; save (previous, caller's) RBP on stack
-  mov RBP, RSP      ; make current RSP the new RBP
-" ^ instr_string ^ "
-  mov RSP, RBP      ; restore value of RSP to that just before call
-                  ; now, value at [RSP] is caller's (saved) RBP
-  pop RBP           ; so: restore caller's RBP from stack [RSP]
-  ret               ; return to caller
+  push RBP          ;; save (previous, caller's) RBP on stack
+  mov RBP, RSP      ;; make current RSP the new RBP
+
+  " ^ instr_string ^ "
+  mov RSP, RBP      ;; restore value of RSP to that just before call
+                    ;; now, value at [RSP] is caller's (saved) RBP
+  pop RBP           ;; so: restore caller's RBP from stack [RSP]
+  ret               ;; return to caller
 ";;
 
 (* Some OCaml boilerplate for reading files and command-line arguments *)
@@ -308,6 +312,6 @@ let () =
   let infile = (open_in (Sys.argv.(1))) in
   let lexbuf = Lexing.from_channel infile in
   let input_ast =  Parser.expr Lexer.token lexbuf in
-  let _ = anf input_ast in
-  let program = (compile_prog input_ast) in
+  let anfed = anf input_ast in
+  let program = (compile_prog anfed) in
   printf "%s\n" program;;
